@@ -5,24 +5,44 @@ module.exports = gql`
     id: String!
     username: String!
     email: String!
-    imageUrl: String
-    createdAt: String
-    updatedAt: String
+    photoURL: String
+    description: String
+    followers: [User!]!
+    followings: [User!]!
+    createdAt: String!
+    updatedAt: String!
     token: String
   }
-  type Message {
+  type Event {
     id: String!
-    content: String!
-    from: String!
-    to: String!
+    title: String!
+    category: String!
+    description: String!
+    city: String!
+    venue: String!
+    date: String!
+    host: User!
+    isCancelled: Boolean!
+    attendees: [User!]!
     createdAt: String!
     updatedAt: String!
   }
 
+  input EventInput {
+    title: String!
+    category: String!
+    description: String!
+    city: String!
+    venue: String!
+    date: String!
+  }
+
   type Query {
-    getUsers: [User!]!
-    login(username: String!, password: String!): User!
-    getMessages(from: String!): [Message!]!
+    login(email: String!, password: String!): User!
+    getUser(id: String!): User!
+    getMe: User!
+    getEvents(page: Int, limit: Int): [Event!]!
+    getEvent(id: String!): Event!
   }
 
   type Mutation {
@@ -32,7 +52,11 @@ module.exports = gql`
       password: String!
       confirmPassword: String!
     ): User!
-
-    sendMessage(to: String!, content: String!): Message!
+    updateUser(username: String, description: String, password: String): User!
+    createEvent(eventInput: EventInput!): Event!
+    updateEvent(id: String!, eventInput: EventInput!): Event!
+    toggleAttendEvent(eventId: String!, userId: String!): Event!
+    toggleCancelEvent(id: String!): Event!
+    toggleFollowUser(userId: String!): User!
   }
 `;

@@ -1,7 +1,7 @@
 const userQuery = require('./user.query');
-const messageQuery = require('./message.query');
+const eventQuery = require('./event.query');
 
 module.exports = {
   ...userQuery,
-  ...messageQuery,
+  ...eventQuery,
 };

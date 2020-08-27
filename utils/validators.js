@@ -30,27 +30,17 @@ module.exports = {
     };
   },
   loginValidator: credentials => {
-    const { username, password } = credentials;
+    const { email, password } = credentials;
     const errors = {};
 
-    if (isEmpty(username)) {
-      errors.username = validatorMessage.REQUIRE_EXISTS;
+    if (isEmpty(email)) {
+      errors.email = validatorMessage.REQUIRE_EXISTS;
+    } else if (!isValidEmail(email)) {
+      errors.email = validatorMessage.REQUIRE_VALID_EMAIL;
     }
 
     if (isEmpty(password)) {
       errors.password = validatorMessage.REQUIRE_EXISTS;
-    }
-
-    return {
-      valid: Object.keys(errors).length === 0,
-      errors,
-    };
-  },
-  sendMessageValidator: ({ content }) => {
-    let errors = {};
-
-    if (isEmpty(content)) {
-      errors.content = validatorMessage.REQUIRE_EXISTS;
     }
 
     return {

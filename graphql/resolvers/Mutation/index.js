@@ -1,7 +1,7 @@
 const userMutation = require('./user.mutation');
-const messageMutation = require('./message.mutation');
+const eventMutation = require('./event.mutation');
 
 module.exports = {
   ...userMutation,
-  ...messageMutation,
+  ...eventMutation,
 };

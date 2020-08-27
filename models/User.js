@@ -13,17 +13,36 @@ const UserSchema = new Schema({
     type: String,
     required: true,
   },
-  imageUrl: {
+  photoURL: {
     type: String,
   },
+  description: {
+    type: String,
+  },
+  followers: [
+    {
+      user: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    },
+  ],
+  followings: [
+    {
+      user: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    },
+  ],
   createdAt: {
     type: Date,
-    required: true
+    required: true,
     // default: Date.now(),
   },
   updatedAt: {
     type: Date,
-    required: true
+    required: true,
     // default: Date.now(),
   },
 });

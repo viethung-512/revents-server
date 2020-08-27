@@ -1,9 +1,9 @@
 const queryResolvers = require('./Query');
 const mutationResolvers = require('./Mutation');
-const messageResolvers = require('./Message');
+const eventResolvers = require('./Event');
 
 module.exports = {
   Query: queryResolvers,
   Mutation: mutationResolvers,
-  Message: messageResolvers,
+  Event: eventResolvers,
 };
