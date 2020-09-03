@@ -19,20 +19,27 @@ const UserSchema = new Schema({
   description: {
     type: String,
   },
+  photos: [
+    {
+      _id: {
+        type: String,
+        required: true,
+      },
+      url: {
+        type: String,
+      },
+    },
+  ],
   followers: [
     {
-      user: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
+      type: Schema.Types.ObjectId,
+      ref: 'User',
     },
   ],
   followings: [
     {
-      user: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
+      type: Schema.Types.ObjectId,
+      ref: 'User',
     },
   ],
   createdAt: {

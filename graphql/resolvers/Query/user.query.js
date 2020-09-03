@@ -48,7 +48,10 @@ module.exports = {
     }
 
     try {
-      const user = await User.findById(id).select('-password');
+      const user = await User.findById(id)
+        .select('-password')
+        .populate('followers', ['id', 'username', 'photoURL'], 'User')
+        .populate('followings', ['id', 'username', 'photoURL'], 'User');
 
       if (!user) {
         throw new ApolloError('User not found');

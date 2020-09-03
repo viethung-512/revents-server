@@ -1,14 +1,20 @@
 const {
   UserInputError,
-  AuthenticationError,
   ForbiddenError,
   ApolloError,
 } = require('apollo-server');
 const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 
 const User = require('../../../models/User');
+const firebaseAdmin = require('../../../utils/firebase/firebaseAdmin');
+const firebaseConfig = require('../../../utils/firebase/firebaseConfig');
 const { registerValidator } = require('../../../utils/validators');
-const { generateToken } = require('../../../utils/helper');
+const {
+  generateToken,
+  getDownloadUrl,
+  generateImageFilename,
+} = require('../../../utils/helper');
 
 module.exports = {
   register: async (parent, args, context, info) => {
@@ -46,6 +52,7 @@ module.exports = {
       });
       await user.save();
       const token = generateToken({ userId: user.id, username: user.username });
+
       user.token = token;
 
       return user;
@@ -72,13 +79,17 @@ module.exports = {
         throw new ApolloError('User not found');
       }
 
-      if (username && username !== authUser.username) {
-        const usernameExists = await User.exists({ username });
-        if (usernameExists) {
-          throw ApolloError('User name already taken');
-        }
+      if (username) {
+        if (username === authUser.username) {
+          updateUserInfo.username = username;
+        } else {
+          const usernameExists = await User.exists({ username });
+          if (usernameExists) {
+            throw new ApolloError('User name already taken');
+          }
 
-        updateUserInfo.username = username;
+          updateUserInfo.username = username;
+        }
       }
 
       if (password) {
@@ -117,33 +128,155 @@ module.exports = {
     }
 
     try {
-      const user = await User.findById(userId);
+      const fromUser = await User.findById(authUser.userId);
+      const toUser = await User.findById(userId);
 
-      if (!user) {
+      if (!fromUser || !toUser) {
         throw new ApolloError('User not found');
       }
 
-      const userFollowed = user.followers.some(
-        userFollow => userFollow.toString() === authUser.id
+      const updateFromUserInfo = {};
+      const updateToUserInfo = {};
+
+      const userFollowed = toUser.followers.some(
+        fl => fl.toString() === fromUser.id.toString()
       );
 
       if (userFollowed) {
-        user.followers = user.followers.filter(
-          userFollower => userFollower.toString() !== authUser.id
+        updateFromUserInfo.followings = fromUser.followings.filter(
+          fl => fl.toString() !== toUser.id.toString()
+        );
+        updateToUserInfo.followers = toUser.followers.filter(
+          fl => fl.toString() !== fromUser.id.toString()
         );
       } else {
-        user.followers.push(authUser.id);
+        updateFromUserInfo.followings = [...fromUser.followings, toUser.id];
+        updateToUserInfo.followers = [...toUser.followers, fromUser.id];
       }
 
-      const updatedUser = await User.findByIdAndUpdate(userId, user)
-        .populate('host', ['id', 'username', 'photoURL'], 'User')
-        .populate('attendees', ['id', 'username', 'photoURL'], 'User');
+      await User.findByIdAndUpdate(fromUser.id, updateFromUserInfo, {
+        new: true,
+      });
+      const updatedToUser = await User.findByIdAndUpdate(
+        toUser.id,
+        updateToUserInfo,
+        { new: true }
+      )
+        .populate('followers', ['id', 'username', 'photoURL'], 'User')
+        .populate('followings', ['id', 'username', 'photoURL'], 'User');
 
-      return updatedUser;
+      return updatedToUser;
     } catch (err) {
+      console.log(err);
       if (err.name === 'CastError') {
         throw new ApolloError('User not found');
       }
+      throw err;
+    }
+  },
+  uploadProfileImage: async (
+    parent,
+    { image },
+    { user: authUser, req },
+    info
+  ) => {
+    if (!authUser) {
+      throw new ForbiddenError('You can not access this source');
+    }
+
+    if (!image) {
+      throw new ApolloError('Please choose image to upload');
+    }
+
+    const { createReadStream, filename, mimetype } = await image;
+    const bucket = firebaseAdmin.storage().bucket(firebaseConfig.storageBucket);
+    const uploadPath = `users/${authUser.userId}`;
+    const imageFilename = generateImageFilename(filename);
+
+    try {
+      const user = await User.findById(authUser.userId);
+
+      // upload image to firebase & getResponse URL
+      await new Promise(res => {
+        createReadStream()
+          .pipe(
+            bucket.file(`${uploadPath}/${imageFilename}`).createWriteStream({
+              destination: `${uploadPath}/${imageFilename}`,
+              resumable: false,
+              gzip: true,
+              metadata: {
+                metadata: {
+                  contentType: mimetype,
+                  firebaseStorageDownloadTokens: uuidv4(),
+                },
+              },
+            })
+          )
+          .on('finish', res);
+      });
+      const responseURL = getDownloadUrl(uploadPath, imageFilename);
+
+      const updateUserInfo = {};
+
+      if (!user.photoURL) {
+        updateUserInfo.photoURL = responseURL;
+      }
+
+      updateUserInfo.photos = [
+        ...user.photos,
+        { url: responseURL, _id: uuidv4() },
+      ];
+
+      const updatedUser = await User.findByIdAndUpdate(
+        authUser.userId,
+        updateUserInfo,
+        { new: true }
+      )
+        .populate('host', ['id', 'username', 'photoURL'])
+        .populate('attendees', ['id', 'username', 'photoURL']);
+
+      return updatedUser;
+    } catch (err) {
+      throw err;
+    }
+  },
+  setMainPhoto: async (parent, { photo }, { user: authUser }, info) => {
+    if (!authUser) {
+      throw new ForbiddenError('You can not access this source');
+    }
+
+    try {
+      const user = await User.findByIdAndUpdate(
+        authUser.userId,
+        { photoURL: photo },
+        { new: true }
+      );
+
+      return user;
+    } catch (err) {
+      throw err;
+    }
+  },
+  deletePhoto: async (parent, { photo }, { user: authUser }, info) => {
+    if (!authUser) {
+      throw new ForbiddenError('You can not access this source');
+    }
+
+    try {
+      const user = await User.findById(authUser.userId);
+
+      const updateUserInfo = {
+        photos: user.photos.filter(photoItem => photoItem.url !== photo),
+      };
+
+      const updatedUser = await User.findByIdAndUpdate(
+        authUser.userId,
+        updateUserInfo,
+        { new: true }
+      );
+
+      return updatedUser;
+    } catch (err) {
       throw err;
     }
   },

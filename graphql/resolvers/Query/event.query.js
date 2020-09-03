@@ -3,26 +3,57 @@ const { ApolloError } = require('apollo-server');
 
 module.exports = {
   getEvents: async (parent, args, context, info) => {
+    const { page, offset, limit, userId, filterType, startDate } = args;
+    const filterOptions = {};
     try {
-      const result = await Event.paginate(
-        {},
-        {
-          populate: [
-            {
-              model: 'User',
-              select: ['id', 'username', 'photoURL'],
-              path: 'host',
-            },
-            {
-              model: 'User',
-              select: ['id', 'username', 'photoURL'],
-              path: 'attendees',
-            },
-          ],
-          page: args.page ? args.page : 1,
-          limit: args.limit ? args.limit : 10,
+      if (userId) {
+        switch (filterType) {
+          case 'EVENT_PASS':
+            filterOptions.date = { $lte: new Date() };
+            break;
+          case 'EVENT_FUTURE':
+            filterOptions.date = { $gte: new Date() };
+            break;
+          case 'EVENT_HOST':
+            filterOptions.host = userId;
+            break;
+          default:
+            filterOptions.date = { $lte: new Date() };
+            break;
         }
-      );
+      } else {
+        switch (filterType) {
+          case 'EVENT_HOST':
+            filterOptions.host = userId;
+            break;
+          case 'EVENT_GOING':
+            filterOptions.attendees = { $contains: userId };
+            break;
+          case 'EVENT_DATE':
+            filterOptions.date = { $gte: startDate };
+            break;
+          default:
+            break;
+        }
+      }
+
+      const result = await Event.paginate(filterOptions, {
+        populate: [
+          {
+            model: 'User',
+            select: ['id', 'username', 'photoURL'],
+            path: 'host',
+          },
+          {
+            model: 'User',
+            select: ['id', 'username', 'photoURL'],
+            path: 'attendees',
+          },
+        ],
+        page: page ? page : 0,
+        limit: limit ? limit : 10,
+        offset: offset ? offset : 0,
+      });
 
       const events = result.docs;
 
